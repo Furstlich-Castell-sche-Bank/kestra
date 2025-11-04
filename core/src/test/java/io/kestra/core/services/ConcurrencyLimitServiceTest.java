@@ -4,27 +4,19 @@ import io.kestra.core.junit.annotations.ExecuteFlow;
 import io.kestra.core.junit.annotations.KestraTest;
 import io.kestra.core.junit.annotations.LoadFlows;
 import io.kestra.core.models.executions.Execution;
-import io.kestra.core.models.flows.Flow;
 import io.kestra.core.models.flows.State;
 import io.kestra.core.queues.QueueException;
-import io.kestra.core.queues.QueueFactoryInterface;
-import io.kestra.core.queues.QueueInterface;
-import io.kestra.core.repositories.FlowRepositoryInterface;
 import io.kestra.core.runners.ConcurrencyLimit;
-import io.kestra.core.runners.RunnerUtils;
+import io.kestra.core.runners.TestRunnerUtils;
 import jakarta.inject.Inject;
-import jakarta.inject.Named;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
-import static io.kestra.core.utils.Rethrow.throwRunnable;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @KestraTest(startRunner = true)
@@ -34,14 +26,7 @@ class ConcurrencyLimitServiceTest {
     private static final String TENANT_ID = "main";
 
     @Inject
-    private RunnerUtils runnerUtils;
-
-    @Inject
-    @Named(QueueFactoryInterface.EXECUTION_NAMED)
-    private QueueInterface<Execution> executionQueue;
-
-    @Inject
-    private FlowRepositoryInterface flowRepositoryInterface;
+    private TestRunnerUtils runnerUtils;
 
     @Inject
     private ConcurrencyLimitService concurrencyLimitService;
@@ -57,7 +42,8 @@ class ConcurrencyLimitServiceTest {
     void unqueueExecution() throws QueueException, TimeoutException {
         // run a first flow so the second is queued
         runnerUtils.runOneUntilRunning(TENANT_ID, TESTS_FLOW_NS, "flow-concurrency-queue");
-        Execution result = runUntilQueued(TESTS_FLOW_NS, "flow-concurrency-queue");
+
+        Execution result = runnerUtils.runOneUntil(TENANT_ID, TESTS_FLOW_NS, "flow-concurrency-queue", execution -> execution.getState().isQueued());
         assertThat(result.getState().isQueued()).isTrue();
 
         Execution unqueued = concurrencyLimitService.unqueue(result, State.Type.RUNNING);
@@ -100,22 +86,5 @@ class ConcurrencyLimitServiceTest {
         assertThat(list.getFirst().getTenantId()).isEqualTo(execution.getTenantId());
         assertThat(list.getFirst().getNamespace()).isEqualTo(execution.getNamespace());
         assertThat(list.getFirst().getFlowId()).isEqualTo(execution.getFlowId());
-    }
-
-    private Execution runUntilQueued(String namespace, String flowId) throws TimeoutException, QueueException {
-        return runUntilState(namespace, flowId, State.Type.QUEUED);
-    }
-
-    private Execution runUntilState(String namespace, String flowId, State.Type state) throws TimeoutException, QueueException {
-        Execution execution = this.createExecution(namespace, flowId);
-        return runnerUtils.awaitExecution(
-            it -> execution.getId().equals(it.getId()) && it.getState().getCurrent() == state,
-            throwRunnable(() -> this.executionQueue.emit(execution)),
-            Duration.ofSeconds(1));
-    }
-
-    private Execution createExecution(String namespace, String flowId) {
-        Flow flow = flowRepositoryInterface.findById(TENANT_ID, namespace, flowId).orElseThrow();
-        return Execution.newExecution(flow, null);
     }
 }
