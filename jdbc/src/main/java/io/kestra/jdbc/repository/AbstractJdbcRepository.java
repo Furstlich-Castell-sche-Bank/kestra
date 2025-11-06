@@ -326,6 +326,9 @@ public abstract class AbstractJdbcRepository {
             return applyKindCondition(value,operation);
         }
 
+        if(field == QueryFilter.Field.TRIGGER_STATE){
+            return applyTriggerStateCondition(value,operation);
+        }
         // Convert the field name to lowercase and quote it
         Name columnName = DSL.quotedName(field.name().toLowerCase());
 
@@ -453,6 +456,16 @@ public abstract class AbstractJdbcRepository {
             case EQUALS -> field("kind").eq(kind);
             case NOT_EQUALS -> field("kind").ne(kind);
             default -> throw new InvalidQueryFiltersException("Unsupported operation for KIND: " + operation);
+        };
+    }
+    private Condition applyTriggerStateCondition(Object value, QueryFilter.Op operation) {
+        String triggerState =  value.toString();
+        boolean isDisabled = triggerState.equals("disabled");
+
+        return switch (operation) {
+            case EQUALS -> field("value",JSONB.class).contains(JSONB.valueOf("{\"disabled\": " + isDisabled + "}"));
+            case NOT_EQUALS -> field("value",JSONB.class).contains(JSONB.valueOf("{\"disabled\": " + !isDisabled + "}"));
+            default -> throw new InvalidQueryFiltersException("Unsupported operation for Trigger State: " + operation);
         };
     }
 
