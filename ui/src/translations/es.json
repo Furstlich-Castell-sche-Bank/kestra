@@ -1749,7 +1749,9 @@
     },
     "triggerState": {
       "label": "Estado del disparador",
-      "description": "Filtrar por estado del disparador"
+      "description": "Filtrar por estado del disparador",
+      "enabled": "Habilitado",
+      "disabled": "Deshabilitado"
     },
     "trigger refresh": "Actualizar trigger",
     "triggerId": "ID del Trigger",

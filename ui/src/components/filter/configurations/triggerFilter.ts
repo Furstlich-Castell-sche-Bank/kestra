@@ -53,7 +53,11 @@ export const useTriggerFilter = (): ComputedRef<FilterConfiguration> => computed
                     Comparators.EQUALS,
                     Comparators.NOT_EQUALS
                 ],
-                valueType: "text",
+                valueType: "select",
+                 valueProvider: async () => {
+                    const {VALUES} = useValues("triggers");
+                    return VALUES.TRIGGER_STATES;
+                }
             },
             {
                 key: "flowId",
