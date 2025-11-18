@@ -334,6 +334,7 @@ public class Flow extends AbstractFlow implements HasUID {
         }
     }
 
+    @Override
     public Flow toDeleted() {
         return this.toBuilder()
             .revision(this.revision + 1)
