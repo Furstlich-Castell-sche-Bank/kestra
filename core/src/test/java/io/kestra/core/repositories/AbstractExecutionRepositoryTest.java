@@ -38,17 +38,16 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static io.kestra.core.models.flows.FlowScope.USER;
+import static java.time.temporal.ChronoUnit.MINUTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doReturn;
@@ -794,91 +793,188 @@ inject(tenant);
                 )
             ).build();
     }*/
-    @Test
-    protected void findShouldSortCorrectlyOnDurationAndDates() {
-        final Instant NOW = Instant.now();
-        final Instant INSTANT_ONE = NOW.minus(Duration.ofDays(1000));
-        final Instant INSTANT_TWO = INSTANT_ONE.plus(Duration.ofHours(11));
-        final Instant INSTANT_THREE = INSTANT_TWO.plus(Duration.ofHours(222));
 
+    record ExecutionSortTestData(Execution createdExecution, Execution successExecution, Execution runningExecution, Execution failedExecution){
+        static ExecutionSortTestData insertExecutionsTestData(String tenant, ExecutionRepositoryInterface executionRepository) {
+            final Instant clock = Instant.now();
+            final AtomicInteger passedTime = new AtomicInteger();
+
+            var createdExecution = Execution.builder()
+                .id("createdExecution__" + FriendlyId.createFriendlyId())
+                .namespace(NAMESPACE)
+                .tenantId(tenant)
+                .flowId(FLOW)
+                .flowRevision(1)
+                .state(
+                    State.of(
+                        State.Type.CREATED,
+                        List.of(
+                            new State.History(State.Type.CREATED, clock)
+                        )
+                    )
+                ).build();
+            executionRepository.save(createdExecution);
+
+            var successExecution = Execution.builder()
+                .id("successExecution__" + FriendlyId.createFriendlyId())
+                .namespace(NAMESPACE)
+                .tenantId(tenant)
+                .flowId(FLOW)
+                .flowRevision(1)
+                .state(
+                    State.of(
+                        State.Type.SUCCESS,
+                        List.of(
+                            new State.History(State.Type.CREATED, clock.plus(passedTime.incrementAndGet(), MINUTES)),
+                            new State.History(State.Type.RUNNING, clock.plus(passedTime.incrementAndGet(), MINUTES)),
+                            new State.History(State.Type.SUCCESS, clock.plus(passedTime.incrementAndGet(), MINUTES))
+                        )
+                    )
+                ).build();
+            assertThat(successExecution.getState().getDuration()).isCloseTo(Duration.ofMinutes(2), Duration.ofSeconds(3));
+            executionRepository.save(successExecution);
+
+            var runningExecution = Execution.builder()
+                .id("runningExecution__" + FriendlyId.createFriendlyId())
+                .namespace(NAMESPACE)
+                .tenantId(tenant)
+                .flowId(FLOW)
+                .flowRevision(1)
+                .state(
+                    State.of(
+                        State.Type.RUNNING,
+                        List.of(
+                            new State.History(State.Type.CREATED, clock.plus(passedTime.incrementAndGet(), MINUTES)),
+                            new State.History(State.Type.RUNNING, clock.plus(passedTime.addAndGet(30), MINUTES))
+                        )
+                    )
+                ).build();
+            assertThat(runningExecution.getState().getDuration()).isNull();
+            executionRepository.save(runningExecution);
+
+            var failedExecution = Execution.builder()
+                .id("failedExecution__" + FriendlyId.createFriendlyId())
+                .namespace(NAMESPACE)
+                .tenantId(tenant)
+                .flowId(FLOW)
+                .flowRevision(1)
+                .state(
+                    State.of(
+                        Type.FAILED,
+                        List.of(
+                            new State.History(State.Type.CREATED, clock.plus(passedTime.incrementAndGet(), MINUTES)),
+                            new State.History(Type.FAILED, clock.plus(passedTime.incrementAndGet(), MINUTES))
+                        )
+                    )
+                ).build();
+            assertThat(failedExecution.getState().getDuration()).isCloseTo(Duration.ofMinutes(1), Duration.ofSeconds(3));
+            executionRepository.save(failedExecution);
+
+            return new ExecutionSortTestData(createdExecution, successExecution, runningExecution, failedExecution);
+        }
+    }
+
+    @Test
+    protected void findShouldSortCorrectlyOnDurationAsc() {
         // given
         var tenant = TestsUtils.randomTenant(this.getClass().getSimpleName());
-        var createdExecution = Execution.builder()
-            .id("createdExecution__" + FriendlyId.createFriendlyId())
-            .namespace(NAMESPACE)
-            .tenantId(tenant)
-            .flowId(FLOW)
-            .flowRevision(1)
-            .state(
-                State.of(
-                    State.Type.CREATED,
-                    List.of(
-                        new State.History(State.Type.CREATED, INSTANT_ONE)
-                    )
-                )
-            ).build();
-        assertThat(createdExecution.getState().getDuration()).isCloseTo(Duration.ofDays(1000), Duration.ofMinutes(10));
-        executionRepository.save(createdExecution);
-
-        var successExecution = Execution.builder()
-            .id("successExecution__" + FriendlyId.createFriendlyId())
-            .namespace(NAMESPACE)
-            .tenantId(tenant)
-            .flowId(FLOW)
-            .flowRevision(1)
-            .state(
-                State.of(
-                    State.Type.SUCCESS,
-                    List.of(
-                        new State.History(State.Type.CREATED, INSTANT_ONE),
-                        new State.History(State.Type.RUNNING, INSTANT_TWO),
-                        new State.History(State.Type.SUCCESS, INSTANT_THREE)
-                    )
-                )
-            ).build();
-        assertThat(successExecution.getState().getDuration()).isCloseTo(Duration.ofHours(233), Duration.ofMinutes(10));
-        executionRepository.save(successExecution);
-
-        var runningExecution = Execution.builder()
-            .id("runningExecution__" + FriendlyId.createFriendlyId())
-            .namespace(NAMESPACE)
-            .tenantId(tenant)
-            .flowId(FLOW)
-            .flowRevision(1)
-            .state(
-                State.of(
-                    State.Type.RUNNING,
-                    List.of(
-                        new State.History(State.Type.CREATED, INSTANT_TWO),
-                        new State.History(State.Type.RUNNING, INSTANT_THREE)
-                    )
-                )
-            ).build();
-        assertThat(runningExecution.getState().getDuration()).isCloseTo(Duration.ofDays(1000).minus(Duration.ofHours(11)), Duration.ofMinutes(10));
-        executionRepository.save(runningExecution);
+        var testData = ExecutionSortTestData.insertExecutionsTestData(tenant, executionRepository);
 
         // when
         List<QueryFilter> emptyFilters = null;
-        var sortedByShortestDuration = executionRepository.find(Pageable.from(Sort.of(Sort.Order.asc("state_duration"))), tenant, emptyFilters);
+        var sort = Sort.of(Sort.Order.asc("state_duration"));
+        var sortedByShortestDuration = executionRepository.find(Pageable.from(sort), tenant, emptyFilters);
+
         // then
         assertThat(sortedByShortestDuration.stream())
-            .as("assert order when finding by shortest duration")
-            .usingRecursiveFieldByFieldElementComparatorOnFields("id")
-            .containsExactly(
-                successExecution,
-                runningExecution,
-                createdExecution
+            .as("assert non-terminated are at the top (list position 0 and 1)")
+            .map(Execution::getId)
+            .elements(0, 1).containsExactlyInAnyOrder(
+                testData.runningExecution().getId(),
+                testData.createdExecution().getId()
             );
+        assertThat(sortedByShortestDuration.stream())
+            .as("assert terminated are at the bot and sorted")
+            .map(Execution::getId)
+            .elements(2, 3).containsExactly(
+                testData.failedExecution().getId(),
+                testData.successExecution().getId()
+            );
+    }
+
+    @Test
+    protected void findShouldSortCorrectlyOnDurationDesc() {
+        // given
+        var tenant = TestsUtils.randomTenant(this.getClass().getSimpleName());
+        var testData = ExecutionSortTestData.insertExecutionsTestData(tenant, executionRepository);
 
         // when
-        var findByMoreRecentStartDate = executionRepository.find(Pageable.from(1, 1, Sort.of(Sort.Order.desc("start_date"))), tenant, emptyFilters);
+        List<QueryFilter> emptyFilters = null;
+        var sort = Sort.of(Sort.Order.desc("state_duration"));
+        var sortedByLongestDuration = executionRepository.find(Pageable.from(sort), tenant, emptyFilters);
+
+        // then
+        assertThat(sortedByLongestDuration.stream())
+            .as("assert terminated are at the top and sorted")
+            .map(Execution::getId)
+            .elements(0, 1).containsExactly(
+                testData.successExecution().getId(),
+                testData.failedExecution().getId()
+            );
+
+        assertThat(sortedByLongestDuration.stream())
+            .as("assert non-terminated are at the bottom (list position 2 and 3)")
+            .map(Execution::getId)
+            .elements(2, 3).containsExactlyInAnyOrder(
+                testData.runningExecution().getId(),
+                testData.createdExecution().getId()
+            );
+    }
+
+    @Test
+    protected void findShouldOrderByStartDateAsc() {
+        // given
+        var tenant = TestsUtils.randomTenant(this.getClass().getSimpleName());
+        var testData = ExecutionSortTestData.insertExecutionsTestData(tenant, executionRepository);
+
+        // when
+        List<QueryFilter> emptyFilters = null;
+        var sort = Sort.of(Sort.Order.asc("start_date"));
+        var page = Pageable.from(1, 1, sort);
+        var findByMoreRecentStartDate = executionRepository.find(
+            page,
+            tenant,
+            emptyFilters
+        );
+
+        // then
+        assertThat(findByMoreRecentStartDate.stream())
+            .as("assert order when finding by first start date")
+            .map(Execution::getId)
+            .containsExactly(testData.createdExecution().getId());
+    }
+
+    @Test
+    protected void findShouldOrderByStartDateDesc() {
+        // given
+        var tenant = TestsUtils.randomTenant(this.getClass().getSimpleName());
+        var testData = ExecutionSortTestData.insertExecutionsTestData(tenant, executionRepository);
+
+        // when
+        List<QueryFilter> emptyFilters = null;
+        var sort = Sort.of(Sort.Order.desc("start_date"));
+        var page = Pageable.from(1, 1, sort);
+        var findByMoreRecentStartDate = executionRepository.find(
+            page,
+            tenant,
+            emptyFilters
+        );
+
         // then
         assertThat(findByMoreRecentStartDate.stream())
             .as("assert order when finding by last start date")
-            .usingRecursiveFieldByFieldElementComparatorOnFields("id")
-            .containsExactly(
-                runningExecution
-            );
+            .map(Execution::getId)
+            .containsExactly(testData.failedExecution().getId());
     }
 
     @Test
