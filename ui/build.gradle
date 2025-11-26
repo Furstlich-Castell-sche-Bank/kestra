@@ -12,6 +12,16 @@ frontend {
     assembleScript = 'run build'
     checkScript = 'run test:unit'
     maxDownloadAttempts = 5
+
+    httpProxyHost = System.getProperty("http.proxyHost")
+    httpProxyPort = System.getProperty("http.proxyPort")?.toInteger()
+    httpProxyUsername = System.getenv("PROXY_USER") ?: System.getProperty("http.proxyUser")
+    httpProxyPassword = System.getenv("PROXY_PASSWORD") ?: System.getProperty("http.proxyPassword")
+
+    httpsProxyHost = System.getProperty("http.proxyHost")
+    httpsProxyPort = System.getProperty("http.proxyPort")?.toInteger()
+    httpsProxyUsername = System.getenv("PROXY_USER") ?: System.getProperty("http.proxyUser")
+    httpsProxyPassword = System.getenv("PROXY_PASSWORD") ?: System.getProperty("http.proxyPassword")
 }
 
 tasks.named('installFrontend') {
