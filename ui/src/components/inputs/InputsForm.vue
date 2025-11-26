@@ -442,11 +442,14 @@
             onChange(input) {
                 // give 2 seconds for the user to finish their edit
                 // and for the server to return with validated content
+                console.log("on change", input.value)
+                console.log("this.inputsValues", this.inputsValues)
+                console.log("selectedTriggerLocal", this.selectedTriggerLocal)
                 setTimeout(() => {
                     this.inputsValidated.add(input.id);
                 }, 2000);
                 input.isDefault = false;
-                this.$emit("update:modelValue", this.inputsValues);
+                this.$emit("update:modelValue", this.selectedTriggerLocal);
                 this.$emit("update:modelValueNoDefault", this.inputsValuesWithNoDefault());
             },
             onSubmit() {
@@ -468,24 +471,24 @@
                 }
 
                 const file = files[0];
-                
+
                 // Sanitize the filename: remove spaces and special characters
                 const sanitizedName = file.name
                     .replace(/[^a-zA-Z0-9.-]/g, "_") // Replace special chars with underscore
                     .replace(/\s+/g, "_");           // Replace spaces with underscore
-                
+
                 // Create a new File object with the sanitized name
                 const sanitizedFile = new File([file], sanitizedName, {
                     type: file.type,
                     lastModified: file.lastModified,
                 });
-                
+
                 const acceptedTypes = this.getAcceptedFileTypes(input);
                 if (acceptedTypes) {
                     const allowedTypes = acceptedTypes.toLowerCase().split(",");
                     const fileName = sanitizedName.toLowerCase();
                     const fileType = file.type.toLowerCase();
-                    
+
                     const isAllowed = allowedTypes.some(type => {
                         type = type.trim();
                         if (type.startsWith(".")) {
@@ -494,7 +497,7 @@
                             return fileType === type;
                         }
                     });
-                    
+
                     if (!isAllowed) {
                         ElMessage.error(this.$t("fileTypeNotAllowed", {types: acceptedTypes}));
                         e.target.value = "";
@@ -531,9 +534,9 @@
                 if (this.inputsMetaData === undefined || this.inputsMetaData.length === 0) {
                     return;
                 }
-              
+
                 const inputsValuesWithNoDefault = this.inputsValuesWithNoDefault();
-                
+
                 const formData = inputsToFormData(this, this.inputsMetaData, inputsValuesWithNoDefault);
 
                 const metadataCallback = (response) => {
@@ -665,12 +668,12 @@
             },
         },
         watch: {
-            flow () {
-                this.validateInputs();
-            },
-            execution () {
-                this.validateInputs();
-            }
+            // flow () {
+            //     this.validateInputs();
+            // },
+            // execution () {
+            //     this.validateInputs();
+            // }
         }
     };
 </script>
