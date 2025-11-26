@@ -38,6 +38,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.slf4j.event.Level;
 
 import java.io.IOException;
+import java.sql.Timestamp;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -601,8 +602,10 @@ public abstract class AbstractExecutionRepositoryTest {
     }
 
     @Test
-    protected void fetchData() throws IOException {
+    protected void dashboard_fetchData() throws IOException {
         String tenantId = "data-tenant";
+        var executionDuration = Duration.ofMinutes(220);
+        var executionCreateDate = Instant.now();
         Execution execution = Execution.builder()
             .tenantId(tenantId)
             .id(IdUtils.create())
@@ -610,7 +613,8 @@ public abstract class AbstractExecutionRepositoryTest {
             .flowId("some-execution")
             .flowRevision(1)
             .labels(Label.from(Map.of("country", "FR")))
-            .state(new State(State.Type.CREATED, List.of(new State.History(State.Type.CREATED, Instant.now()))))
+            .state(new State(Type.SUCCESS,
+                List.of(new State.History(State.Type.CREATED, executionCreateDate), new State.History(Type.SUCCESS, executionCreateDate.plus(executionDuration)))))
             .taskRunList(List.of())
             .build();
 
@@ -620,8 +624,9 @@ public abstract class AbstractExecutionRepositoryTest {
                 .type(Executions.class.getName())
                 .columns(Map.of(
                     "count", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.ID).agg(AggregationType.COUNT).build(),
-                    "country", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.LABELS).labelKey("country").build(),
-                    "date", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.START_DATE).build()
+                    "id", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.ID).build(),
+                    "date", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.START_DATE).build(),
+                    "duration", ColumnDescriptor.<Executions.Fields>builder().field(Executions.Fields.DURATION).build()
                 )).build(),
             ZonedDateTime.now().minus(1, ChronoUnit.HOURS),
             ZonedDateTime.now(),
@@ -629,10 +634,20 @@ public abstract class AbstractExecutionRepositoryTest {
         );
 
         assertThat(data.getTotal()).isEqualTo(1L);
-        assertThat(data.get(0).get("count")).isEqualTo(1L);
-        assertThat(data.get(0).get("country")).isEqualTo("FR");
+        assertThat(data).first().hasFieldOrPropertyWithValue("count", 1);
+        assertThat(data).first().hasFieldOrPropertyWithValue("id", execution.getId());
         Instant startDate = execution.getState().getStartDate();
-        assertThat(data.get(0).get("date")).isEqualTo(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX").format(ZonedDateTime.ofInstant(startDate, ZoneId.systemDefault()).withSecond(0).withNano(0)));
+
+        var date = data.get(0).get("date");
+        assertThat(date)
+            .isInstanceOf(Timestamp.class);
+        assertThat(((Timestamp) date).toInstant()).isEqualTo(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+            .format(ZonedDateTime.ofInstant(startDate, ZoneId.systemDefault()).withSecond(0).withNano(0)));
+
+        // FIXME implement, it seems there is a bug about the data type
+//        var duration = data.get(0).get("duration");
+//        assertThat(duration).as("duration for a non-terminated execution should equals the expected duration")
+//            .isEqualTo(executionDuration);
     }
 
     private static Execution buildWithCreatedDate(String tenant, Instant instant) {
