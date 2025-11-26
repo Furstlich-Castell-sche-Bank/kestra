@@ -22,7 +22,7 @@ dependencies {
     implementation "io.micronaut.cache:micronaut-cache-core"
     implementation "io.micronaut.cache:micronaut-cache-caffeine"
 
-    # Patch for enabling OAuth2 security
+    // Patch for enabling OAuth2 security
     implementation "io.micronaut.security:micronaut-security-oauth2<"
     implementation "io.micronaut.security:micronaut-security-jwt"
     implementation "io.micronaut.session:micronaut-session"
