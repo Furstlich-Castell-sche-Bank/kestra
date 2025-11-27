@@ -31,6 +31,14 @@ import jakarta.validation.ConstraintViolationException;
 @Controller
 public class ErrorController {
     @Error(global = true)
+    public HttpResponse<JsonError> error(HttpRequest<?> request, AuthorizationException e) {
+        // Let Micronaut Security handle authorization exceptions
+        if (e instanceof AuthorizationException) {
+            throw (AuthorizationException) e;
+        }
+    }
+
+    @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, JsonParseException e) {
         return jsonError(request, e, HttpStatus.UNPROCESSABLE_ENTITY, "Invalid json");
     }
@@ -131,7 +139,6 @@ public class ErrorController {
         return jsonError(request, e, HttpStatus.UNPROCESSABLE_ENTITY, "Invalid format");
     }
 
-
     @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, UnsatisfiedBodyRouteException e) {
         return jsonError(request, e, HttpStatus.UNPROCESSABLE_ENTITY, "Invalid route params");
@@ -139,10 +146,6 @@ public class ErrorController {
 
     @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, Throwable e) {
-        // Let Micronaut Security handle authorization exceptions
-        if (e instanceof AuthorizationException) {
-            throw (AuthorizationException) e;
-        }
         return jsonError(request, e, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }
 
