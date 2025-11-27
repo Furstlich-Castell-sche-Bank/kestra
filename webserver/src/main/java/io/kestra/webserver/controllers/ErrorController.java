@@ -30,13 +30,6 @@ import jakarta.validation.ConstraintViolationException;
 @Slf4j
 @Controller
 public class ErrorController {
-    @Error(global = true)
-    public HttpResponse<JsonError> error(HttpRequest<?> request, AuthorizationException e) {
-        // Let Micronaut Security handle authorization exceptions
-        if (e instanceof AuthorizationException) {
-            throw (AuthorizationException) e;
-        }
-    }
 
     @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, JsonParseException e) {
@@ -142,11 +135,6 @@ public class ErrorController {
     @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, UnsatisfiedBodyRouteException e) {
         return jsonError(request, e, HttpStatus.UNPROCESSABLE_ENTITY, "Invalid route params");
-    }
-
-    @Error(global = true)
-    public HttpResponse<JsonError> error(HttpRequest<?> request, Throwable e) {
-        return jsonError(request, e, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }
 
     @Error(global = true, status = HttpStatus.NOT_FOUND)
