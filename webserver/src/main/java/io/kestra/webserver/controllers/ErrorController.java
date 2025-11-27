@@ -139,6 +139,10 @@ public class ErrorController {
 
     @Error(global = true)
     public HttpResponse<JsonError> error(HttpRequest<?> request, Throwable e) {
+        // Let Micronaut Security handle authorization exceptions
+        if (e instanceof AuthorizationException) {
+            throw (AuthorizationException) e;
+        }
         return jsonError(request, e, HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
     }
 
